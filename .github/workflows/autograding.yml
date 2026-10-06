@@ -1,0 +1,115 @@
+name: SQL Auto Grading - Marksheet
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  grade:
+
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+
+        env:
+          MYSQL_ROOT_PASSWORD: root
+
+        ports:
+          - 3306:3306
+
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+
+      # ==========================================
+      # STEP 1: CHECKOUT REPOSITORY
+      # ==========================================
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+
+      # ==========================================
+      # STEP 2: WAIT FOR MYSQL
+      # ==========================================
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}
+          do
+            mysqladmin ping \
+              -h 127.0.0.1 \
+              -P 3306 \
+              -u root \
+              -proot && break
+            sleep 2
+          done
+
+
+      # ==========================================
+      # STEP 3: CHECK MYSQL
+      # ==========================================
+
+      - name: Check MySQL
+        run: |
+          mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot \
+            -e "SELECT VERSION();"
+
+
+      # ==========================================
+      # STEP 4: PREPARE DATABASE
+      # ==========================================
+
+      - name: Prepare Database
+        run: |
+          mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot <<'SQL'
+
+          CREATE DATABASE IF NOT EXISTS CollegeDB;
+
+          USE CollegeDB;
+
+          DROP TABLE IF EXISTS Marksheet;
+
+          SQL
+
+
+      # ==========================================
+      # STEP 5: RUN STUDENT SOLUTION
+      # ==========================================
+
+      - name: Run Student Solution
+        run: |
+          mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot \
+            < solution.sql
+
+
+      # ==========================================
+      # STEP 6: RUN SQL TESTS
+      # ==========================================
+
+      - name: Run SQL Tests
+        run: |
+          mysql \
+            -h 127.0.0.1 \
+            -P 3306 \
+            -u root \
+            -proot \
+            < test.sql
